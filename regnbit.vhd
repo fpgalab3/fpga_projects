@@ -1,3 +1,5 @@
+--REGISTER N BIT--
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all ; 
@@ -15,7 +17,7 @@ signal temp : std_logic_vector(n-1 downto 0);
 begin
 	process(clk,rst)
 	begin
-		if  rst='0' then -- changed to use push button
+		if  rst='0' then 
 temp<=(others=>'0');
 		elsIf rising_edge(clk) then
    			if ld='1' then
