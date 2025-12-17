@@ -14,11 +14,16 @@ entity hardwired is
 end hardwired;
 
 architecture arc of hardwired is
-  signal I : std_logic_vector(15 downto 0);
-  signal cnt : std_logic_vector(2 downto 0);
-  signal T : std_logic_vector(7 downto 0);
+  signal I : std_logic_vector(15 downto 0);    
+  signal cnt : std_logic_vector(2 downto 0);    
+  signal T : std_logic_vector(7 downto 0);      
   signal T0, T1, T2, T3, T4, T5, T6, T7 : std_logic;
+
+
+-- σήματα fetch/execute
   signal FETCH1, FETCH2, FETCH3 : std_logic;
+
+  -- σήματα ενεργοποίησης 
   signal NOP1 : std_logic;
   signal LDAC1, LDAC2, LDAC3, LDAC4, LDAC5 : std_logic;
   signal STAC1, STAC2, STAC3, STAC4, STAC5 : std_logic;
@@ -30,14 +35,18 @@ architecture arc of hardwired is
   signal JPNZN1, JPNZN2: std_logic;
   signal ADD1, SUB1, INAC1, CLAC1 : std_logic;
   signal AND1, OR1, XOR1, NOT1 : std_logic;
-  signal inc_s : std_logic;
-  signal clr_s : std_logic;
-  signal z_n : std_logic;
+
+  signal inc_s : std_logic;    
+  signal clr_s : std_logic;   
+  signal z_n : std_logic;       
+
+  -- control signals datapath
   signal ARLOAD, ARINC, PCLOAD, PCINC, DRLOAD, TRLOAD, IRLOAD : std_logic;
   signal RLOAD, ACLOAD, ZLOAD, READ, WRITE, MEMBUS, BUSMEM: std_logic;
   signal PCBUS, DRBUS, TRBUS, RBUS, ACBUS : std_logic;
   signal ANDOP, OROP, XOROP, NOTOP, ACINC, ACZERO, PLUS, MINUS : std_logic;
 
+  -- bit θέσεις στο mOPs bus
   constant B_ARLOAD : integer := 26;
   constant B_ARINC : integer := 25;
   constant B_PCLOAD: integer := 24;
@@ -70,12 +79,14 @@ begin
 
   z_n <= not z;
 
+  -- αποκωδικοποίηση εντολής 
   U_IDEC : instr_dec
     port map(
       din  => ir,
       dout => I
     );
 
+  -- μετρητής T-state όπου με inc_s πάει στο επόμενο, με clr_s επιστρέφει T0
   U_CNT : counter3_bit
     port map(
       clock => clock,
@@ -84,6 +95,7 @@ begin
       count => cnt
     );
 
+  -- αποκωδικοποίηση καταστάσεων
   U_SDEC : state_dec
     port map(
       din  => cnt,
@@ -99,60 +111,78 @@ begin
   T6 <= T(6); 
   T7 <= T(7);
 
+  -- FETCH 
   FETCH1 <= T0;
   FETCH2 <= T1;
-  FETCH3 <= T2;  
+  FETCH3 <= T2;
+
+  -- EXECUTE
   NOP1  <= I(0) and T3;
+
   LDAC1 <= I(1) and T3;
   LDAC2 <= I(1) and T4;
   LDAC3 <= I(1) and T5;
   LDAC4 <= I(1) and T6;
   LDAC5 <= I(1) and T7;
+
   STAC1 <= I(2) and T3;
   STAC2 <= I(2) and T4;
   STAC3 <= I(2) and T5;
   STAC4 <= I(2) and T6;
   STAC5 <= I(2) and T7;
+
   MVAC1 <= I(3) and T3;
   MOVR1 <= I(4) and T3;
+
   JUMP1 <= I(5) and T3;
   JUMP2 <= I(5) and T4;
   JUMP3 <= I(5) and T5;
+
+  --jumps με βάση z
   JMPZY1 <= I(6) and z  and T3;
   JMPZY2 <= I(6) and z  and T4;
   JMPZY3 <= I(6) and z  and T5;
+
   JMPZN1 <= I(6) and z_n and T3;
   JMPZN2 <= I(6) and z_n and T4;
+
   JPNZY1 <= I(7) and z_n and T3;
   JPNZY2 <= I(7) and z_n and T4;
   JPNZY3 <= I(7) and z_n and T5;
+
   JPNZN1 <= I(7) and z  and T3;
   JPNZN2 <= I(7) and z  and T4;
+
   ADD1  <= I(8) and T3;
   SUB1  <= I(9) and T3;
   INAC1 <= I(10) and T3;
   CLAC1 <= I(11) and T3;
+
   AND1  <= I(12) and T3;
   OR1   <= I(13) and T3;
   XOR1  <= I(14) and T3;
   NOT1  <= I(15) and T3;
 
+  -- clr_s: όταν τελειώσει η εντολή, γυρνάμε σε FETCH (T0)
+  clr_s <= NOP1 or LDAC5 or STAC5 or MVAC1 or MOVR1 or ADD1 or SUB1 or INAC1 or CLAC1 or AND1 or OR1 or XOR1 or NOT1 or JUMP3 or JMPZY3 or JMPZN2 or JPNZY3 or JPNZN2;
 
-  clr_s <= NOP1 or LDAC5 or STAC5 or MVAC1 or MOVR1 or  ADD1 or SUB1 or INAC1 or CLAC1 or AND1 or OR1 or XOR1 or NOT1 or  JUMP3 or JMPZY3 or JMPZN2 or JPNZY3 or JPNZN2;
+  -- inc_s: Πάμε σε  T-state όσο δεν έχει γίνει reset/τέλος εντολής
   inc_s <= '1' when (reset = '0' and clr_s = '0') else '0';
+
+  -- παραγωγή control σημάτων datapath (μικροεντολές)
   ARLOAD <= FETCH1 or FETCH3 or LDAC3 or STAC3;
   ARINC  <= LDAC1 or STAC1 or JMPZY1 or JPNZY1;
   PCLOAD <= JUMP3 or JMPZY3 or JPNZY3;
   PCINC  <= FETCH2 or LDAC1 or LDAC2 or STAC1 or STAC2 or JMPZN1 or JMPZN2 or JPNZN1 or JPNZN2;
-  DRLOAD <= FETCH2 or LDAC1 or LDAC2 or LDAC4 or STAC1  or STAC2  or STAC4  or JUMP1  or JUMP2  or   JMPZY1 or JMPZY2 or JPNZY1 or JPNZY2;
+  DRLOAD <= FETCH2 or LDAC1 or LDAC2 or LDAC4 or STAC1  or STAC2  or STAC4  or JUMP1  or JUMP2  or JMPZY1 or JMPZY2 or JPNZY1 or JPNZY2;
   TRLOAD <= LDAC2 or STAC2 or JUMP2 or JMPZY2 or JPNZY2;
   IRLOAD <= FETCH3;
   RLOAD  <= MVAC1;
   ACLOAD <= LDAC5 or MOVR1 or ADD1 or SUB1 or INAC1 or CLAC1 or AND1  or OR1   or XOR1 or NOT1;
   ZLOAD  <= LDAC5 or MOVR1 or ADD1 or SUB1 or INAC1 or CLAC1 or AND1  or OR1   or XOR1 or NOT1;
-  READ   <= FETCH2 or LDAC1 or LDAC2 or LDAC4 or STAC1  or STAC2  or JUMP1  or JUMP2  or JMPZY1 or JMPZY2 or JPNZY1 or JPNZY2;
+  READ   <= FETCH2 or LDAC1 or LDAC2 or LDAC4 or STAC1 or STAC2 or JUMP1 or JUMP2 or JMPZY1 or JMPZY2 or JPNZY1 or JPNZY2;
   WRITE  <= STAC5;
-  MEMBUS <= FETCH2 or LDAC1 or LDAC2 or LDAC4 or STAC1  or STAC2  or JUMP1  or JUMP2  or JMPZY1 or JMPZY2 or JPNZY1 or JPNZY2;
+  MEMBUS <= FETCH2 or LDAC1 or LDAC2 or LDAC4 or STAC1 or STAC2 or JUMP1 or JUMP2 or JMPZY1 or JMPZY2 or JPNZY1 or JPNZY2;
   BUSMEM <= STAC5;
   PCBUS  <= FETCH1 or FETCH3;
   DRBUS  <= LDAC2 or LDAC3 or LDAC5 or STAC2 or STAC3 or STAC5 or JUMP2 or JUMP3 or JMPZY2 or JMPZY3 or JPNZY2 or JPNZY3;
@@ -168,7 +198,8 @@ begin
   PLUS   <= ADD1;
   MINUS  <= SUB1;
 
-  
+--Control σήματα mOPs
+
   process(all)
     variable v : std_logic_vector(26 downto 0);
   begin
